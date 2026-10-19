@@ -1,5 +1,6 @@
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import CheckConstraint
 from sqlalchemy.orm import validates
 
 db = SQLAlchemy()
@@ -19,9 +20,34 @@ class Exercise(db.Model):
         cascade="all, delete-orphan"
     )
 
+    workouts = db.relationship(
+        "Workout",
+        secondary="workout_exercises",
+        viewonly=True
+    )
+
+    @validates("name")
+    def validate_name(self, key, value):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Exercise name is required")
+        return value.strip()
+
+    @validates("category")
+    def validate_category(self, key, value):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Exercise category is required")
+        return value.strip()
+
 
 class Workout(db.Model):
     __tablename__ = "workouts"
+
+    __table_args__ = (
+        CheckConstraint(
+            "duration_minutes > 0",
+            name="positive_workout_duration"
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
@@ -34,21 +60,51 @@ class Workout(db.Model):
         cascade="all, delete-orphan"
     )
 
+    exercises = db.relationship(
+        "Exercise",
+        secondary="workout_exercises",
+        viewonly=True
+    )
+
+    @validates("duration_minutes")
+    def validate_duration(self, key, value):
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError("Workout duration must be positive")
+        return value
+
 
 class WorkoutExercise(db.Model):
     __tablename__ = "workout_exercises"
 
+    __table_args__ = (
+        CheckConstraint(
+            "reps >= 0",
+            name="nonnegative_reps"
+        ),
+        CheckConstraint(
+            "sets >= 0",
+            name="nonnegative_sets"
+        ),
+        CheckConstraint(
+            "duration_seconds >= 0",
+            name="nonnegative_duration"
+        ),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
+
     workout_id = db.Column(
         db.Integer,
         db.ForeignKey("workouts.id"),
         nullable=False
     )
+
     exercise_id = db.Column(
         db.Integer,
         db.ForeignKey("exercises.id"),
         nullable=False
     )
+
     reps = db.Column(db.Integer)
     sets = db.Column(db.Integer)
     duration_seconds = db.Column(db.Integer)
