@@ -1,6 +1,9 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_migrate import Migrate
+from marshmallow import ValidationError
+
 from models import db, Exercise, Workout, WorkoutExercise
+from schemas import WorkoutSchema, ExerciseSchema, WorkoutExerciseSchema
 
 app = Flask(__name__)
 
@@ -15,6 +18,65 @@ migrate = Migrate(app, db)
 def home():
     return {"message": "Welcome to Workout Tracker API"}, 200
 
+
+# Get all workouts
+@app.route("/workouts", methods=["GET"])
+def get_workouts():
+    workouts = Workout.query.all()
+    result = WorkoutSchema(many=True).dump(workouts)
+
+    return jsonify(result), 200
+
+
+# Get one workout
+@app.route("/workouts/<int:id>", methods=["GET"])
+def get_workout(id):
+    workout = db.session.get(Workout, id)
+
+    if not workout:
+        return jsonify({"error": "Workout not found"}), 404
+
+    return jsonify(WorkoutSchema().dump(workout)), 200
+
+
+# Create a workout
+@app.route("/workouts", methods=["POST"])
+def create_workout():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON body"}), 400
+
+    try:
+        validated_data = WorkoutSchema().load(data)
+
+        workout = Workout(**validated_data)
+
+        db.session.add(workout)
+        db.session.commit()
+
+        return jsonify(WorkoutSchema().dump(workout)), 201
+
+    except ValidationError as error:
+        return jsonify({"errors": error.messages}), 400
+
+    except ValueError as error:
+        db.session.rollback()
+        return jsonify({"error": str(error)}), 400
+
+
+# Delete a workout
+@app.route("/workouts/<int:id>", methods=["DELETE"])
+def delete_workout(id):
+    workout = db.session.get(Workout, id)
+
+    if not workout:
+        return jsonify({"error": "Workout not found"}), 404
+
+    db.session.delete(workout)
+    db.session.commit()
+
+    return "", 204
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
