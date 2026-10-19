@@ -1,7 +1,6 @@
-
 from flask import Flask
 from flask_migrate import Migrate
-from models import db
+from models import db, Exercise, Workout, WorkoutExercise
 
 app = Flask(__name__)
 
